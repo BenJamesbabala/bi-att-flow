@@ -65,7 +65,7 @@ def attention_flow(config, is_train, h, u, h_mask=None, u_mask=None, scope=None,
         for layer_idx in range(num_layers):
             (fw_g, bw_g), _ = bidirectional_dynamic_rnn(d_cell, d_cell, g, h_len, dtype='float', scope='g{}'.format(layer_idx))  # [N*M, JX, 2d]
             g = tf.concat(2, [fw_g, bw_g])
-        return p, g
+        return p, g + h
 
 
 def bi_attention_flow_layer(config, is_train, h, u, h_mask=None, u_mask=None, scope=None, tensor_dict=None):
@@ -81,8 +81,8 @@ def bi_attention_flow_layer(config, is_train, h, u, h_mask=None, u_mask=None, sc
         u_mask = tf.tile(tf.expand_dims(u_mask, 1), [1, M, 1])
         u_mask = tf.reshape(u_mask, [-1, JQ])
 
-        _, c2q = attention_flow(config, is_train, u, h, h_mask=u_mask, u_mask=h_mask, scope='c2q')  # [N * M, JQ, 2d]
-        p, q2c = attention_flow(config, is_train, h, u + c2q, h_mask=h_mask, u_mask=u_mask, scope='q2c', num_layers=2)  # [N * M, JX, 2d]
+        _, c2q = attention_flow(config, is_train, u, h, h_mask=u_mask, u_mask=h_mask, scope='c2q', num_layers=1)  # [N * M, JQ, 2d]
+        p, q2c = attention_flow(config, is_train, h, c2q, h_mask=h_mask, u_mask=u_mask, scope='q2c', num_layers=2)  # [N * M, JX, 2d]
         p = tf.reshape(p, [-1, M, JX, 6*d])
         q2c = tf.reshape(q2c, [-1, M, JX, 2*d])
         out = p, q2c
