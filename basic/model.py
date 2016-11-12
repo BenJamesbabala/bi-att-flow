@@ -214,6 +214,7 @@ class Model(object):
                     h = tf.concat(3, [fw_h, bw_h])  # [N, M, JX, 2d]
             self.tensor_dict['u'] = u
             self.tensor_dict['h'] = h
+            self.h = h
 
         with tf.variable_scope("main"):
             if config.dynamic_att:

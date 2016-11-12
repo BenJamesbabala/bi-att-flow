@@ -12,7 +12,7 @@ c = {}
 assert min(map(len, others)) == max(map(len, others)), list(map(len, others))
 
 for key in others[0].keys():
-    if key == 'scores':
+    if key in ('scores', 'vecs'):
         continue
     probs = [other['scores'][key] for other in others]
     vals = [other[key] for other in others]

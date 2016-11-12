@@ -192,6 +192,8 @@ class ForwardEvaluation(Evaluation):
         new_id2answer_dict = dict(list(self.id2answer_dict.items()) + list(other.id2answer_dict.items()))
         new_id2score_dict = dict(list(self.id2answer_dict['scores'].items()) + list(other.id2answer_dict['scores'].items()))
         new_id2answer_dict['scores'] = new_id2score_dict
+        new_id2vec_dict = dict(list(self.id2answer_dict['vecs'].items()) + list(other.id2answer_dict['vecs'].items()))
+        new_id2answer_dict['vecs'] = new_id2vec_dict
         if self.tensor_dict is not None:
             new_tensor_dict = {key: np.concatenate((val, other.tensor_dict[key]), axis=0) for key, val in self.tensor_dict.items()}
         return ForwardEvaluation(self.data_type, self.global_step, new_idxs, new_yp, new_yp2, new_loss, new_id2answer_dict, tensor_dict=new_tensor_dict)
@@ -353,12 +355,13 @@ class ForwardEvaluator(Evaluator):
         super(ForwardEvaluator, self).__init__(config, model, tensor_dict=tensor_dict)
         self.yp2 = model.yp2
         self.loss = model.loss
+        self.h = model.h
 
     def get_evaluation(self, sess, batch):
         idxs, data_set = batch
         assert isinstance(data_set, DataSet)
         feed_dict = self.model.get_feed_dict(data_set, False)
-        global_step, yp, yp2, loss, vals = sess.run([self.global_step, self.yp, self.yp2, self.loss, list(self.tensor_dict.values())], feed_dict=feed_dict)
+        global_step, yp, yp2, loss, h, vals = sess.run([self.global_step, self.yp, self.yp2, self.loss, self.h, list(self.tensor_dict.values())], feed_dict=feed_dict)
 
         yp, yp2 = yp[:data_set.num_examples], yp2[:data_set.num_examples]
         spans, scores = zip(*[get_best_span(ypi, yp2i) for ypi, yp2i in zip(yp, yp2)])
@@ -370,10 +373,15 @@ class ForwardEvaluator(Evaluator):
                 return [""]
             return xi[span[0][0]][span[0][1]:span[1][1]]
 
+        def _get_vec(hi, span):
+            return np.sum(hi[span[0][0], span[0][1]:span[1][1], :], 0).tolist()
+
         id2answer_dict = {id_: " ".join(_get(xi, span))
                           for id_, xi, span in zip(data_set.data['ids'], data_set.data['x'], spans)}
+        id2vec_dict = {id_: _get_vec(hi, span) for id_, hi, span in zip(data_set.data['ids'], h, spans)}
         id2score_dict = {id_: score for id_, score in zip(data_set.data['ids'], scores)}
         id2answer_dict['scores'] = id2score_dict
+        id2answer_dict['vecs'] = id2vec_dict
         tensor_dict = dict(zip(self.tensor_dict.keys(), vals))
         e = ForwardEvaluation(data_set.data_type, int(global_step), idxs, yp.tolist(), yp2.tolist(), float(loss), id2answer_dict, tensor_dict=tensor_dict)
         return e
